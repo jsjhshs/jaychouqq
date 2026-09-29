@@ -93,8 +93,8 @@ class Spider(BaseSpider):
         's40': {'name': '🐾火狐', 'api': 'https://hhzyapi.com/api.php/provide/vod/'},
         's41': {'name': '🐾刺桐', 'api': 'http://pg.cttv.vip/api.php/provide/vod/'},
         's42': {'name': '🐾巨量', 'api': 'https://api.juliang.live/api/provide/vod/'},
-        's43': {'name': '🐾荐片', 'api': 'http://192.129.140.23:5757/api/荐片[优]?pwd=dzyyds', 'type': 2},
-        's44': {'name': '🐾tvbx', 'api': 'https://dy.7772888.xyz/api.php/tvbox', 'type': 1},
+        's43': {'name': '🐾荐片', 'api': 'https://zhangqun1818.serv00.net/jianpian.php', 'type': 2},
+        's44': {'name': '🐾独播库', 'api': 'http://101.42.104.195:7123/api/tvbox/source/2050160339265261568?token=OLFNw46CpJpG9fP2Y2zBW0tvbcLJ9Si2', 'type': 5},
         's45': {'name': '📺魔都', 'api': 'https://www.mdzyapi.com/api.php/provide/vod'},
     }
 
@@ -110,18 +110,21 @@ class Spider(BaseSpider):
         qs = urlencode({k: str(params[k]) for k in keys})
         return url + ('&' if '?' in url else '?') + qs
 
-    def _request(self, url):
+    def _request(self, url, extra_headers=None):
         try:
+            hdr = dict(self.headers)
+            if extra_headers:
+                hdr.update(extra_headers)
             if requests is None:
                 import urllib.request
                 import ssl
                 ctx = ssl.create_default_context()
                 ctx.check_hostname = False
                 ctx.verify_mode = ssl.CERT_NONE
-                req = urllib.request.Request(url, headers=self.headers)
+                req = urllib.request.Request(url, headers=hdr)
                 with urllib.request.urlopen(req, timeout=12, context=ctx) as r:
                     return r.read().decode('utf-8', 'ignore')
-            r = requests.get(url, headers=self.headers, timeout=12, verify=False)
+            r = requests.get(url, headers=hdr, timeout=12, verify=False)
             r.encoding = 'utf-8'
             return r.text if r.status_code == 200 else ''
         except Exception as e:
@@ -173,6 +176,8 @@ class Spider(BaseSpider):
             o['vod_play_url'] = o['vod_url']
         if not o.get('vod_id') and o.get('id'):
             o['vod_id'] = o['id']
+        if o.get('vod_id') is not None:
+            o['vod_id'] = str(o['vod_id'])
         if not o.get('vod_name') and o.get('name'):
             o['vod_name'] = o['name']
         if not o.get('vod_name') and o.get('title'):
@@ -373,19 +378,53 @@ class Spider(BaseSpider):
         return vals, first_cate
 
     def homeContent(self, filter):
+        # 只返回源列表，不逐个请求分类（否则 40+ 源会卡死加载）
         classes = []
         filters = {}
-        self._first_cate = {}
+        self._first_cate = {'s43': '1', 's44': 'site_duoduo'}
+        default_vals = [{'n': '全部(最新)', 'v': ''}]
         for sk, so in self.SOURCES.items():
             classes.append({'type_id': sk, 'type_name': so['name']})
-            try:
-                vals, first = self._load_filter(sk, so)
-                if first:
-                    self._first_cate[sk] = first
-            except Exception:
-                vals = [{'n': '全部(最新)', 'v': ''}]
-            filters[sk] = [{'key': 'cateId', 'name': '分类', 'value': vals}]
-        return {'class': classes, 'filters': filters}
+            if (so.get('type') or 1) == 5:
+                vals = [
+                    {'n': '玩偶', 'v': 'site_wanou'},
+                    {'n': '木偶', 'v': 'site_muou'},
+                    {'n': '蜡笔', 'v': 'site_labi'},
+                    {'n': '至臻', 'v': 'site_zhizhen'},
+                    {'n': '二小', 'v': 'site_erxiao'},
+                    {'n': '虎斑', 'v': 'site_huban'},
+                    {'n': '快映', 'v': 'site_kuaiying'},
+                    {'n': '闪电', 'v': 'site_shandian'},
+                    {'n': '欧哥', 'v': 'site_ouge'},
+                    {'n': '多多', 'v': 'site_duoduo'},
+                ]
+                filters[sk] = [{'key': 'cateId', 'name': '站点', 'value': vals}]
+                self._first_cate[sk] = 'site_duoduo'
+            elif (so.get('type') or 1) == 4:
+                vals = [
+                    {'n': '全部(连续剧)', 'v': 'tv'},
+                    {'n': '连续剧', 'v': 'tv'},
+                    {'n': '电影', 'v': 'movie'},
+                    {'n': '综艺', 'v': 'variety'},
+                    {'n': '动漫', 'v': 'anime'},
+                ]
+                filters[sk] = [{'key': 'cateId', 'name': '分类', 'value': vals}]
+                self._first_cate[sk] = 'tv'
+            elif sk == 's43':
+
+                vals = [
+                    {'n': '电影', 'v': '1'},
+                    {'n': '电视剧', 'v': '2'},
+                    {'n': '动漫', 'v': '3'},
+                    {'n': '综艺', 'v': '4'},
+                    {'n': '纪录片', 'v': '50'},
+                    {'n': 'Netflix', 'v': '99'},
+                ]
+                filters[sk] = [{'key': 'cateId', 'name': '分类', 'value': vals}]
+                self._first_cate[sk] = '1'
+            else:
+                filters[sk] = [{'key': 'cateId', 'name': '分类', 'value': list(default_vals)}]
+        return {'class': classes, 'filters': filters if filter else {}}
 
     def homeVideoContent(self):
         return {'list': []}
@@ -408,10 +447,20 @@ class Spider(BaseSpider):
             if cate_id:
                 params['t'] = cate_id
             url = self._build_url(source['api'], params)
-        elif stype == 2:
+        elif stype == 5:
+            if not cate_id:
+                cate_id = self._first_cate.get(tid) or 'site_duoduo'
+            params = {'t': cate_id, 'pg': pg, 'categoryId': '1'}
+            # extend 可覆盖 categoryId
+            if isinstance(extend, dict) and extend.get('categoryId') is not None:
+                params['categoryId'] = self._text(extend.get('categoryId'))
+            url = self._build_url(source['api'], params)
+        elif stype in (2, 4):
             params = {'pg': pg}
-            if cate_id:
-                params['t'] = cate_id
+            if not cate_id:
+                # dbo 无 t 时列表为空，默认连续剧
+                cate_id = self._first_cate.get(tid) or 'tv'
+            params['t'] = cate_id
             url = self._build_url(source['api'], params)
         else:
             params = {'ac': 'detail', 'pg': pg}
@@ -449,6 +498,14 @@ class Spider(BaseSpider):
         stype = source.get('type') or 1
         if stype == 0:
             html = self._request(self._build_url(source['api'], {'ac': 'videolist', 'ids': real_id}))
+        elif stype == 5:
+            html = self._request(self._build_url(source['api'], {'ac': 'detail', 'ids': real_id}))
+            if not html or not self._parse_response(html).get('list'):
+                html = self._request(self._build_url(source['api'], {'ids': real_id}))
+        elif stype == 4:
+            html = self._request(self._build_url(source['api'], {'ac': 'detail', 'ids': real_id}))
+            if not html:
+                html = self._request(self._build_url(source['api'], {'ids': real_id}))
         elif stype == 3:
             html = self._request(self._build_url(source['api'], {'ac': 'videolist', 'ids': real_id}))
             tmp = self._parse_response(html)
@@ -459,6 +516,15 @@ class Spider(BaseSpider):
                     html = html2
         else:
             html = self._request(self._build_url(source['api'], {'ac': 'detail', 'ids': real_id}))
+            tmp0 = self._parse_response(html)
+            first0 = (tmp0.get('list') or [None])[0]
+            if not first0 or not self._text(first0.get('vod_play_url') or first0.get('vod_url')):
+                html_vl = self._request(self._build_url(source['api'], {'ac': 'videolist', 'ids': real_id}))
+                dvl = self._parse_response(html_vl)
+                if (dvl.get('list') or [None])[0] and self._text(
+                    (dvl['list'][0].get('vod_play_url') or dvl['list'][0].get('vod_url') or '')
+                ):
+                    html = html_vl
             if stype == 2:
                 tmp = self._parse_response(html)
                 first = (tmp.get('list') or [None])[0]
@@ -494,27 +560,62 @@ class Spider(BaseSpider):
 
     def searchContentPage(self, key, quick, pg=1):
         pg = int(pg or 1)
+        key = self._text(key)
+        if not key:
+            return {'list': [], 'page': pg, 'pagecount': 1, 'limit': 40, 'total': 0}
         result = []
         max_page = 1
-        for sk, so in self.SOURCES.items():
+        items = list(self.SOURCES.items())
+
+        def _one(sk_so):
+            sk, so = sk_so
             try:
                 stype = so.get('type') or 1
                 if stype in (0, 3):
                     url = self._build_url(so['api'], {'ac': 'videolist', 'wd': key, 'pg': pg})
                 elif stype == 2:
                     url = self._build_url(so['api'], {'wd': key, 'pg': pg})
+                elif stype == 5:
+                    url = self._build_url(so['api'], {'wd': key, 'pg': pg})
+                elif stype == 4:
+                    url = self._build_url(so['api'], {'t': 'tv', 'pg': pg})
                 else:
                     url = self._build_url(so['api'], {'ac': 'detail', 'wd': key, 'pg': pg})
                 data = self._parse_response(self._request(url))
+                if stype not in (0, 2, 3) and not data.get('list'):
+                    data2 = self._parse_response(
+                        self._request(self._build_url(so['api'], {'ac': 'videolist', 'wd': key, 'pg': pg}))
+                    )
+                    if data2.get('list'):
+                        data = data2
+                lst = []
                 for it in (data.get('list') or []):
                     cleaned = self._clean_item(it, sk, so['name'], False)
                     cleaned['vod_pic'] = self._fix_pic(cleaned.get('vod_pic'))
-                    result.append(cleaned)
-                pc = int(data.get('pagecount') or 1)
-                if pc > max_page:
-                    max_page = pc
+                    lst.append(cleaned)
+                return lst, int(data.get('pagecount') or 1)
             except Exception as e:
                 print('search skip', sk, e)
+                return [], 1
+
+        try:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                futs = [pool.submit(_one, it) for it in items]
+                for fut in as_completed(futs, timeout=25):
+                    try:
+                        lst, pc = fut.result()
+                        result.extend(lst)
+                        if pc > max_page:
+                            max_page = pc
+                    except Exception:
+                        pass
+        except Exception:
+            for it in items[:15]:
+                lst, pc = _one(it)
+                result.extend(lst)
+                if pc > max_page:
+                    max_page = pc
         return {
             'list': result,
             'page': pg,
@@ -529,6 +630,92 @@ class Spider(BaseSpider):
             first = play_url.split(';')[0]
             if re.match(r'^https?://', first, re.I):
                 play_url = first
+        # 独播库 type5：网盘链接含 | 或 @@，调接口解析真实地址
+        if ('|' in play_url and '@@' in play_url) or (
+            'pan.baidu.com' in play_url or 'pan.quark.cn' in play_url or 'drive.uc.cn' in play_url
+        ):
+            api = self.SOURCES.get('s44', {}).get('api') or ''
+            fl = self._text(flag)
+            if '-' in fl:
+                fl = fl.split('-', 1)[-1]
+            # flag 用空或站点名均可
+            resp = self._request(self._build_url(api, {'flag': fl or '', 'play': play_url}))
+            j = self._safe_json(resp) or {}
+            real = j.get('url')
+            if isinstance(real, list):
+                # ["RAW", "https://..."] 或 ["proxy", "..."]
+                for x in real:
+                    xs = self._text(x)
+                    if xs.startswith('http'):
+                        real = xs
+                        break
+                else:
+                    real = self._text(real[-1] if real else '')
+            else:
+                real = self._text(real or '')
+            hdr = {'User-Agent': self.UA}
+            hraw = j.get('header')
+            if isinstance(hraw, str):
+                try:
+                    hraw = json.loads(hraw)
+                except Exception:
+                    hraw = None
+            if isinstance(hraw, dict):
+                hdr.update({k: v for k, v in hraw.items() if v})
+            if real:
+                return {'parse': 0, 'jx': 0, 'url': real, 'header': hdr}
+            return {'parse': 0, 'jx': 0, 'url': play_url, 'header': hdr}
+        # 旧 dbo：相对 /play/xxx → 调接口取 m3u8（必须带 Referer）
+        if play_url.startswith('/play/') or re.match(r'^\d+-ep\d+', play_url):
+            path = play_url if play_url.startswith('/') else '/play/' + play_url
+            fl = self._text(flag)
+            if '-' in fl:
+                fl = fl.split('-', 1)[-1]
+            if not fl or fl.startswith('🐾') or fl.startswith('s') or '荐片' in fl or '独播' in fl:
+                fl = '独播库内网'
+            api = 'http://bob2.hkt.net.cn/miraplay/dbo.php'
+            dbo_hdr = {
+                'User-Agent': self.UA,
+                'Referer': 'https://www.dbkk.cc/',
+                'Origin': 'https://www.dbkk.cc',
+            }
+            resp = self._request(
+                self._build_url(api, {'flag': fl, 'play': path}),
+                extra_headers=dbo_hdr,
+            )
+            try:
+                j = self._safe_json(resp) or {}
+            except Exception:
+                j = {}
+            real = self._text(j.get('url') or '')
+            hdr = {
+                'User-Agent': self.UA,
+                'Referer': 'https://www.dbkk.cc/',
+                'Origin': 'https://www.dbkk.cc',
+            }
+            hraw = j.get('header')
+            if isinstance(hraw, str):
+                try:
+                    hraw = json.loads(hraw)
+                except Exception:
+                    hraw = None
+            if isinstance(hraw, dict):
+                for k, v in hraw.items():
+                    if v:
+                        hdr[k] = v
+            if real:
+                return {'parse': 0, 'jx': 0, 'url': real, 'header': hdr}
+            # 二次尝试：去掉 /play/ 前缀
+            if path.startswith('/play/'):
+                resp2 = self._request(
+                    self._build_url(api, {'flag': fl, 'play': path[6:]}),
+                    extra_headers=dbo_hdr,
+                )
+                j2 = self._safe_json(resp2) or {}
+                real2 = self._text(j2.get('url') or '')
+                if real2:
+                    return {'parse': 0, 'jx': 0, 'url': real2, 'header': hdr}
+            return {'parse': 0, 'jx': 0, 'url': '', 'header': hdr}
         need_parse = not self.isVideoFormat(play_url)
         return {
             'parse': 1 if need_parse else 0,
@@ -536,7 +723,7 @@ class Spider(BaseSpider):
             'url': play_url,
             'header': {
                 'User-Agent': self.UA,
-                'Referer': 'https://api.juliang.live/',
+                'Referer': 'https://www.dbkk.cc/',
             },
         }
 

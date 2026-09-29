@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-xHamster https://zh.xhamster1.pw
-分类对齐 JS：含欧美/日韩中意 复古·经典·自制 等
+xHamster 兼容影视仓/OK影视
+镜像: zh.xhamster1.pw
+播放: 仅输出 h264 具体分辨率，禁止 _TPL_/av1 粘连
 """
 import json
 import re
@@ -26,47 +27,32 @@ except ImportError:
 class Spider(BaseSpider):
     def __init__(self):
         self.siteUrl = 'https://zh.xhamster1.pw'
+        self.hosts = [
+            'https://zh.xhamster1.pw',
+            'https://xhamster1.pw',
+            'https://zh.xhamster.com',
+            'https://xhamster.com',
+        ]
         self.userAgent = (
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-            '(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+            'Mozilla/5.0 (Linux; Android 12; SM-G991B) AppleWebKit/537.36 '
+            '(KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36'
         )
         self.channels = {
             'newest': {'name': '最新', 'path': '/newest'},
             'best': {'name': '最佳', 'path': '/best'},
             '4k': {'name': '4K超清', 'path': '/4k'},
             'hd': {'name': '高清HD', 'path': '/hd'},
-            'vr': {'name': 'VR', 'path': '/vr'},
-            'best-4k': {'name': '最佳4K', 'path': '/best/4k'},
-            'best-hd': {'name': '最佳高清', 'path': '/best/hd'},
-            'newest-4k': {'name': '最新4K', 'path': '/newest/4k'},
-            'newest-hd': {'name': '最新高清', 'path': '/newest/hd'},
-            'categories-amateur': {'name': '业余', 'path': '/categories/amateur'},
             'categories-asian': {'name': '亚洲', 'path': '/categories/asian'},
             'categories-japanese': {'name': '日本', 'path': '/categories/japanese'},
-            'categories-japanese-vintage': {'name': '日本复古', 'path': '/search/japanese+vintage'},
-            'japanese-vintage-tag': {'name': 'Japanese Vintage', 'path': '/search/japanese+vintage'},
-            'categories-japanese-homemade': {'name': '日本自制', 'path': '/search/japanese+amateur'},
-            'categories-japanese-classic': {'name': '日本经典', 'path': '/search/japanese+classic'},
-            'tags-retro-asian': {'name': '复古亚洲', 'path': '/tags/retro-asian'},
             'categories-chinese': {'name': '中国', 'path': '/categories/chinese'},
-            'categories-chinese-homemade': {'name': '中国自制', 'path': '/search/chinese+amateur'},
-            'categories-chinese-classic': {'name': '中国经典', 'path': '/search/chinese+classic'},
             'categories-korean': {'name': '韩国', 'path': '/categories/korean'},
-            'categories-korean-homemade': {'name': '韩国自制', 'path': '/search/korean+amateur'},
-            'categories-korean-classic': {'name': '韩国经典', 'path': '/search/korean+classic'},
+            'categories-japanese-vintage': {'name': '日本复古', 'path': '/search/japanese+vintage'},
             'categories-european-vintage': {'name': '欧美复古', 'path': '/search/european+vintage'},
-            'categories-european-classic': {'name': '欧美经典', 'path': '/search/european+classic'},
+            'categories-chinese-classic': {'name': '中国经典', 'path': '/search/chinese+classic'},
             'categories-italian-vintage': {'name': '意大利复古', 'path': '/search/italian+vintage'},
-            'categories-italian-classic': {'name': '意大利经典', 'path': '/search/italian+classic'},
             'categories-milf': {'name': '熟女', 'path': '/categories/milf'},
-            'categories-lesbian': {'name': '女同', 'path': '/categories/lesbian'},
-            'categories-teen': {'name': '少女', 'path': '/categories/teen'},
-            'categories-big-tits': {'name': '大胸', 'path': '/categories/big-tits'},
+            'categories-amateur': {'name': '业余', 'path': '/categories/amateur'},
             'categories-anal': {'name': '肛交', 'path': '/categories/anal'},
-            'categories-creampie': {'name': '内射', 'path': '/categories/creampie'},
-            'categories-blowjob': {'name': '口交', 'path': '/categories/blowjob'},
-            'categories-threesome': {'name': '3P', 'path': '/categories/threesome'},
-            'categories-public': {'name': '公开', 'path': '/categories/public'},
             'categories-vintage': {'name': '复古', 'path': '/categories/vintage'},
         }
 
@@ -76,38 +62,52 @@ class Spider(BaseSpider):
     def init(self, extend=""):
         try:
             if extend:
-                ext = json.loads(extend) if isinstance(extend, str) else (extend or {})
-                if isinstance(ext, dict) and ext.get('host'):
-                    self.siteUrl = str(ext.get('host')).rstrip('/')
-                elif isinstance(extend, str) and extend.startswith('http'):
+                if isinstance(extend, str) and extend.startswith('http'):
                     self.siteUrl = extend.rstrip('/')
+                else:
+                    ext = json.loads(extend) if isinstance(extend, str) else (extend or {})
+                    if isinstance(ext, dict) and ext.get('host'):
+                        self.siteUrl = str(ext.get('host')).rstrip('/')
         except Exception:
             pass
+        return self
+
+    def _hdr(self):
+        return {
+            'User-Agent': self.userAgent,
+            'Referer': self.siteUrl + '/',
+            'Origin': self.siteUrl,
+            'Accept': 'text/html,application/xhtml+xml,*/*;q=0.8',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            'Cookie': 'age_verified=1; cookie_accept=1; locale=zh; ts_popunder=1',
+        }
 
     def fetch(self, url, headers=None):
         if headers is None:
-            headers = {
-                'User-Agent': self.userAgent,
-                'Referer': self.siteUrl + '/',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-                'Cookie': 'age_verified=1; cookie_accept=1; locale=zh; ts_popunder=1',
-            }
-        try:
-            if requests:
-                resp = requests.get(url, headers=headers, timeout=20, verify=False)
-                if resp.status_code == 200:
-                    return resp.text
-            from urllib.request import Request, urlopen
-            import ssl
-            ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
-            raw = urlopen(Request(url, headers=headers), timeout=20, context=ctx).read()
-            return raw.decode('utf-8', 'ignore')
-        except Exception as e:
-            print('请求失败: %s, %s' % (url, e))
-            return ''
+            headers = self._hdr()
+        urls = [url]
+        for h in self.hosts:
+            if url.startswith(self.siteUrl):
+                alt = h + url[len(self.siteUrl):]
+                if alt not in urls:
+                    urls.append(alt)
+            elif not url.startswith('http'):
+                alt = h + (url if url.startswith('/') else '/' + url)
+                if alt not in urls:
+                    urls.append(alt)
+        for u in urls:
+            try:
+                if requests:
+                    resp = requests.get(u, headers=headers, timeout=22, verify=False)
+                    if resp.status_code == 200 and len(resp.text) > 3000:
+                        for h in self.hosts:
+                            if u.startswith(h):
+                                self.siteUrl = h
+                                break
+                        return resp.text
+            except Exception:
+                continue
+        return ''
 
     def _abs(self, u):
         if not u:
@@ -132,7 +132,6 @@ class Spider(BaseSpider):
         idx = html.find('window.initials')
         if idx < 0:
             return None
-        # 定位第一个 {
         brace = html.find('{', idx)
         if brace < 0:
             return None
@@ -160,10 +159,10 @@ class Spider(BaseSpider):
                 depth -= 1
                 if depth == 0:
                     try:
-                        return json.loads(html[brace:i+1].replace('\\/', '/'))
+                        return json.loads(html[brace:i + 1].replace('\\/', '/'))
                     except Exception:
                         try:
-                            return json.loads(html[brace:i+1])
+                            return json.loads(html[brace:i + 1])
                         except Exception:
                             return None
         return None
@@ -173,34 +172,69 @@ class Spider(BaseSpider):
         if not data:
             return videos
 
+        def fix_thumb(u):
+            """保留原始签名 URL，不改尺寸不编码（编码后部分壳仍无法加载）"""
+            if not u:
+                return ''
+            return str(u).replace('\\/', '/').strip()
+
         def push(slug, title, pic):
             if not slug or slug in seen or len(str(slug)) < 4:
                 return
-            if re.match(r'^(categories|channels|users|photos|creators|pornstars|tags|search)\b', str(slug), re.I):
+            if re.match(r'^(categories|channels|users|photos|creators|pornstars|tags|search|shorts)\b', str(slug), re.I):
+                return
+            # 过滤 shorts
+            if '/shorts/' in str(slug) or str(slug).startswith('shorts'):
                 return
             seen.add(slug)
             videos.append({
                 'vod_id': str(slug),
                 'vod_name': (title or str(slug).replace('-', ' '))[:120],
-                'vod_pic': self._abs(pic or ''),
+                'vod_pic': self._abs(fix_thumb(pic)),
                 'vod_remarks': '',
             })
 
-        # 优先 searchResult / videoThumbProps
         candidates = []
-        sr = data.get('searchResult') or {}
-        if isinstance(sr, dict) and isinstance(sr.get('videoThumbProps'), list):
-            candidates.extend(sr['videoThumbProps'])
-        # pages 其它列表
-        for key in ('videoThumbProps', 'videos', 'videoList', 'relatedVideoProps'):
-            for root in (data, data.get('entity') or {}, data.get('store') or {}):
-                if not isinstance(root, dict):
-                    continue
-                val = root.get(key)
-                if isinstance(val, list):
-                    candidates.extend(val)
-                if isinstance(val, dict) and isinstance(val.get('videoThumbProps'), list):
-                    candidates.extend(val['videoThumbProps'])
+
+        def collect(obj, depth=0):
+            if depth > 12:
+                return
+            if isinstance(obj, list):
+                # 列表本身可能是 video 对象数组
+                if obj and isinstance(obj[0], dict) and (
+                    obj[0].get('pageURL') or obj[0].get('thumbURL') or obj[0].get('title')
+                ):
+                    candidates.extend(obj)
+                for x in obj[:80]:
+                    collect(x, depth + 1)
+                return
+            if not isinstance(obj, dict):
+                return
+            # 任何层级的 videoThumbProps
+            vtp = obj.get('videoThumbProps')
+            if isinstance(vtp, list) and vtp:
+                candidates.extend(vtp)
+            # 分类页: trendingVideoListProps / videoListProps / searchResult 等
+            for key in (
+                'videos', 'videoList', 'videoThumbProps',
+                'relatedVideoProps', 'trendingVideoProps', 'trendingVideoListProps',
+                'recommendedVideoProps', 'videoListProps', 'searchResult',
+                'layoutPage', 'store', 'entity', 'pages',
+            ):
+                if key in obj:
+                    collect(obj[key], depth + 1)
+            # 兜底：遍历其余 dict 值（限深度）
+            if depth < 6:
+                for k, v in obj.items():
+                    if k in ('videos', 'videoList', 'videoThumbProps', 'relatedVideoProps',
+                             'trendingVideoProps', 'trendingVideoListProps',
+                             'recommendedVideoProps', 'videoListProps', 'searchResult',
+                             'layoutPage', 'store', 'entity', 'pages'):
+                        continue
+                    if isinstance(v, (dict, list)):
+                        collect(v, depth + 1)
+
+        collect(data)
 
         for obj in candidates:
             if not isinstance(obj, dict):
@@ -210,140 +244,145 @@ class Spider(BaseSpider):
             slug = ''
             if isinstance(pageURL, str) and '/videos/' in pageURL:
                 slug = pageURL.split('/videos/')[-1].split('?')[0].rstrip('/')
+            elif isinstance(pageURL, str) and '/shorts/' in pageURL:
+                continue
             if not slug:
-                vid = obj.get('id') or obj.get('videoId')
-                if vid:
-                    slug = str(vid)
-            pic = obj.get('thumbURL') or obj.get('previewThumbURL') or obj.get('image') or ''
-            if slug:
-                push(slug, title, pic)
+                continue
+            pic = (
+                obj.get('imageURL')
+                or obj.get('thumbURL')
+                or obj.get('previewThumbURL')
+                or obj.get('image')
+                or ''
+            )
+            push(slug, title, pic)
 
-        # 仍不足则全树 walk
-        if len(videos) < 10:
-            def walk(obj):
-                if isinstance(obj, list):
-                    for x in obj:
-                        walk(x)
-                    return
-                if not isinstance(obj, dict):
-                    return
-                pageURL = obj.get('pageURL') or obj.get('link') or obj.get('url') or ''
-                title = obj.get('title') or obj.get('name') or ''
-                slug = ''
-                if isinstance(pageURL, str) and '/videos/' in pageURL:
-                    slug = pageURL.split('/videos/')[-1].split('?')[0].rstrip('/')
-                if slug and (title or obj.get('thumbURL')):
-                    pic = obj.get('thumbURL') or obj.get('previewThumbURL') or ''
-                    push(slug, title, pic)
-                for v in obj.values():
-                    if isinstance(v, (dict, list)):
-                        walk(v)
-            walk(data)
         return videos
 
     def _parse_list(self, html):
         html = html or ''
         data = self._extract_initials(html)
         videos = self._videos_from_initials(data)
-        if len(videos) >= 8:
+        if len(videos) >= 40:
             return videos
-        # HTML 兜底：多套正则
         seen = {v['vod_id'] for v in videos}
         patterns = [
-            r'href="((?:https?:)?//[^"]*?/videos/([^"?#]+))"[^>]*>[\s\S]{0,800}?(?:src|data-src|data-previewvideo)="((?:https?:)?//[^"]+)"[\s\S]{0,500}?(?:alt|title)="([^"]*)"',
-            r'href="(/videos/([^"?#]+))"[^>]*>[\s\S]{0,600}?(?:src|data-src)="([^"]+)"[\s\S]{0,400}?(?:alt|title)="([^"]*)"',
-            r'data-video-id="(\d+)"[\s\S]{0,1000}?href="[^"]*/videos/([^"?#]+)"[\s\S]{0,500}?(?:src|data-src)="([^"]+)"[\s\S]{0,300}?(?:alt|title)="([^"]*)"',
+            r'href="(/videos/([^"?#]+))"[^>]*>[\s\S]{0,800}?(?:src|data-src|data-thumb)=["\']([^"\']+)["\'][\s\S]{0,500}?(?:alt|title)=["\']([^"\']*)["\']',
+            r'(?:src|data-src)=["\']([^"\']+xhcdn[^"\']+)["\'][\s\S]{0,400}?href="[^"]*/videos/([^"?#]+)"[\s\S]{0,300}?(?:alt|title)=["\']([^"\']*)["\']',
         ]
         for pat in patterns:
             for m in re.finditer(pat, html, re.I):
                 g = m.groups()
-                if len(g) == 4 and g[1] and not g[1].isdigit():
+                if len(g) == 4 and g[0].startswith('/videos'):
                     slug, pic, title = g[1], g[2], g[3]
-                elif len(g) == 4 and g[0].isdigit():
-                    slug, pic, title = g[1], g[2], g[3]
+                elif len(g) == 3:
+                    pic, slug, title = g[0], g[1], g[2]
                 else:
                     continue
                 slug = slug.strip('/')
                 if not slug or slug in seen or len(slug) < 4:
                     continue
-                if re.match(r'^(categories|channels|users|photos|creators|pornstars|tags|search)\b', slug, re.I):
+                if re.match(r'^(categories|channels|users|photos|creators|pornstars|tags|search|shorts)\b', slug, re.I):
                     continue
                 seen.add(slug)
+                # keep original signed size
+                pass
+                # pic unchanged
                 videos.append({
                     'vod_id': slug,
                     'vod_name': (title or slug.replace('-', ' '))[:120],
                     'vod_pic': self._abs(pic),
                     'vod_remarks': '',
                 })
-            if len(videos) >= 20:
+            if len(videos) >= 24:
                 break
-        if len(videos) < 8:
-            for m in re.finditer(r'/videos/([a-z0-9][a-z0-9\-_]{5,})', html, re.I):
-                slug = m.group(1)
+        if len(videos) < 12:
+            for m in re.finditer(
+                r'(?:src|data-src)=["\'](https://[^"\']*xhcdn[^"\']+)["\'][\s\S]{0,500}?/videos/([a-z0-9][a-z0-9\-_]{5,})',
+                html, re.I
+            ):
+                pic, slug = m.group(1), m.group(2)
                 if slug in seen:
+                    continue
+                if re.match(r'^(categories|channels|users|photos|creators|pornstars|tags|search|shorts)\b', slug, re.I):
                     continue
                 seen.add(slug)
                 videos.append({
                     'vod_id': slug,
                     'vod_name': slug.replace('-', ' '),
-                    'vod_pic': '',
+                    'vod_pic': self._abs(pic),
+                    'vod_remarks': '',
+                })
+            for m in re.finditer(r'/videos/([a-z0-9][a-z0-9\-_]{5,})', html, re.I):
+                slug = m.group(1)
+                if slug in seen:
+                    continue
+                if re.match(r'^(categories|channels|users|photos|creators|pornstars|tags|search|shorts)\b', slug, re.I):
+                    continue
+                seen.add(slug)
+                block = html[max(0, m.start()-300):m.start()+100]
+                pm = re.search(r'(https://[^"\']*xhcdn[^"\']+\.(?:webp|jpg|jpeg|png)[^"\']*)', block, re.I)
+                videos.append({
+                    'vod_id': slug,
+                    'vod_name': slug.replace('-', ' '),
+                    'vod_pic': self._abs(pm.group(1)) if pm else '',
                     'vod_remarks': '',
                 })
         return videos
 
-    def _pagecount_from(self, html, pg, nlist):
-        data = self._extract_initials(html)
-        if data and isinstance(data.get('pagination'), dict):
-            pag = data['pagination']
-            mx = int(pag.get('maxPage') or pag.get('maxPages') or 0)
-            if mx > 0:
-                return max(mx, pg)
-        pages = [int(x) for x in re.findall(r'[?&]page=(\d+)', html or '')]
-        if pages and max(pages) > pg:
-            return max(max(pages), pg)
-        # 分类页常无 pagination 字段，满页则继续可翻
-        if nlist >= 24:
-            return max(pg + 1, 80)
-        if nlist >= 12:
-            return pg + 1
-        return pg
-
-    def homeContent(self, filter):
+    def homeContent(self, filter=False):
         classes = [{'type_id': k, 'type_name': v['name']} for k, v in self.channels.items()]
-        return {'class': classes, 'filters': {}}
+        try:
+            lst = self._parse_list(self.fetch(self._page_url('/newest', 1)))[:48]
+        except Exception:
+            lst = []
+        return {'class': classes, 'list': lst, 'filters': {}}
 
     def homeVideoContent(self):
-        html = self.fetch(self._page_url('/newest', 1))
-        return {'list': self._parse_list(html)[:24]}
+        return {'list': self._parse_list(self.fetch(self._page_url('/newest', 1)))[:24]}
 
-    def categoryContent(self, tid, pg, filter, extend):
+    def categoryContent(self, tid, pg=1, filter=False, extend=None):
         pg = int(pg or 1)
-        info = self.channels.get(str(tid), {'path': '/' + str(tid or 'newest')})
-        html = self.fetch(self._page_url(info.get('path') or '/newest', pg))
-        videos = self._parse_list(html)
-        pagecount = self._pagecount_from(html, pg, len(videos))
+        tid = str(tid or 'newest').strip()
+        info = self.channels.get(tid, {'path': '/' + tid if not tid.startswith('/') else tid})
+        path = info.get('path') or '/newest'
+        paths = [path]
+        if path.startswith('/search/'):
+            alt = path.replace('+', '%20')
+            if alt not in paths:
+                paths.append(alt)
+        videos, html = [], ''
+        for p in paths:
+            html = self.fetch(self._page_url(p, pg))
+            videos = self._parse_list(html)
+            if len(videos) >= 8:
+                break
+        if len(videos) < 5 and tid not in ('newest', 'best'):
+            html2 = self.fetch(self._page_url('/newest', 1))
+            videos2 = self._parse_list(html2)
+            if len(videos2) > len(videos):
+                videos = videos2
+        pagecount = pg + 1 if len(videos) >= 12 else pg
         return {
-            'list': videos,
+            'list': videos or [],
             'page': pg,
             'pagecount': pagecount,
             'limit': 48,
-            'total': pagecount * 48,
+            'total': pagecount * 48 if videos else 0,
         }
 
-    def searchContent(self, key, quick, pg=1):
+    def searchContent(self, key, quick=False, pg=1):
         return self.searchContentPage(key, quick, pg)
 
-    def searchContentPage(self, key, quick, pg=1):
+    def searchContentPage(self, key, quick=False, pg=1):
         pg = int(pg or 1)
         raw = str(key or '').strip()
         if not raw:
-            return {'list': [], 'page': 1, 'pagecount': 1}
+            return {'list': [], 'page': 1, 'pagecount': 1, 'limit': 48, 'total': 0}
         q_plus = urllib.parse.quote(raw).replace('%20', '+')
-        q_enc = urllib.parse.quote(raw)
         candidates = [
             '%s/search/%s' % (self.siteUrl, q_plus) + (('?page=%d' % pg) if pg > 1 else ''),
-            '%s/search/%s' % (self.siteUrl, q_enc) + (('?page=%d' % pg) if pg > 1 else ''),
-            '%s/search/?q=%s' % (self.siteUrl, q_enc) + (('&page=%d' % pg) if pg > 1 else ''),
+            '%s/search/?q=%s' % (self.siteUrl, urllib.parse.quote(raw)) + (('&page=%d' % pg) if pg > 1 else ''),
         ]
         videos, html = [], ''
         for url in candidates:
@@ -351,14 +390,67 @@ class Spider(BaseSpider):
             videos = self._parse_list(html)
             if videos:
                 break
-        pagecount = self._pagecount_from(html, pg, len(videos))
         return {
-            'list': videos,
+            'list': videos or [],
             'page': pg,
-            'pagecount': pagecount,
+            'pagecount': pg + 1 if len(videos) >= 12 else pg,
             'limit': 48,
-            'total': 9999,
+            'total': 9999 if videos else 0,
         }
+
+    def _pick_plays(self, html):
+        """只返回 h264 具体分辨率，禁止 _TPL_ / av1"""
+        html = html or ''
+        plays = []
+        seen = set()
+
+        def clean(u):
+            u = (u or '').replace('\\/', '/').replace('\\u002F', '/')
+            if len(u) > 10 and 'http' in u[8:]:
+                u = u[:u.find('http', 8)]
+            return u.strip().split()[0] if u else ''
+
+        def add(label, u):
+            u = clean(u)
+            if not u or not u.startswith('http') or u in seen:
+                return
+            if '_TPL_' in u or re.search(r'preview|sprite|thumb', u, re.I):
+                return
+            if 'av1' in u.lower():
+                return
+            seen.add(u)
+            plays.append((label, u))
+
+        raw = [clean(u) for u in re.findall(r'https?://[^"\'\s<>\\]+\.m3u8[^"\'\s<>\\]*', html)]
+        tpl = None
+        for u in raw:
+            if '_TPL_' in u and 'h264' in u:
+                tpl = u
+                break
+        if not tpl:
+            for u in raw:
+                if '_TPL_' in u:
+                    tpl = re.sub(r'_TPL_\.(?:h264|av1)\.mp4\.m3u8', '_TPL_.h264.mp4.m3u8', u)
+                    break
+
+        qualities = []
+        if tpl and 'multi=' in tpl:
+            mm = re.search(r'multi=([^/&]+)', tpl)
+            if mm:
+                qualities = re.findall(r'(\d+p)', mm.group(1), re.I)
+                qualities = sorted(set(qualities), key=lambda q: int(re.sub(r'\D', '', q) or 0), reverse=True)
+
+        if tpl:
+            for q in (qualities or ['1080p', '720p', '480p']):
+                add(q, tpl.replace('_TPL_', q))
+
+        for u in raw:
+            if '_TPL_' in u or 'av1' in u.lower():
+                continue
+            qm = re.search(r'(\d+p)', u, re.I)
+            add(qm.group(1) if qm else 'HLS', u)
+
+        return plays
 
     def detailContent(self, ids):
         slug = str((ids or [''])[0]).lstrip('/')
@@ -377,98 +469,75 @@ class Spider(BaseSpider):
         pm = re.search(r'og:image["\']\s+content=["\']([^"\']+)', html or '', re.I)
         if pm:
             pic = self._abs(pm.group(1))
-        play = self._pick_play(html)
+        plays = self._pick_plays(html)
+        if plays:
+            # 单线路 + # 多清晰度，避免部分壳 $$$ 粘连
+            play_from = 'xHamster'
+            play_url = '#'.join(['%s$%s' % (n, u) for n, u in plays])
+        else:
+            play_from = 'xHamster'
+            play_url = '正片$%s' % slug
         return {
             'list': [{
                 'vod_id': slug,
                 'vod_name': title,
                 'vod_pic': pic,
                 'vod_content': title,
-                'vod_play_from': 'xHamster',
-                'vod_play_url': '正片$%s' % (play or slug),
+                'vod_play_from': play_from,
+                'vod_play_url': play_url,
             }]
         }
 
-    def _pick_play(self, html):
-        html = html or ''
-        m3 = re.search(r'https?://[^\s"\']+\.m3u8[^\s"\']*', html)
-        if m3:
-            return m3.group(0).replace('\\/', '/')
-        # initials
-        m = re.search(r'window\.initials\s*=\s*(\{[\s\S]+?\})\s*;', html)
-        if m:
-            try:
-                data = json.loads(m.group(1).replace('\\/', '/'))
-                xps = (data.get('xplayerSettings') or {}).get('sources') or {}
-                hls = xps.get('hls') or {}
-                if isinstance(hls, dict):
-                    u = hls.get('url') or hls.get('fallback') or ''
-                    if u and self.isVideoFormat(u):
-                        return u.replace('\\/', '/')
-                elif isinstance(hls, str) and self.isVideoFormat(hls):
-                    return hls
-                std = xps.get('standard') or {}
-                best, best_q = '', 0
-                if isinstance(std, dict):
-                    for k, lst in std.items():
-                        if not isinstance(lst, list):
-                            continue
-                        for item in lst:
-                            if not isinstance(item, dict):
-                                continue
-                            u = item.get('url') or item.get('fallback') or ''
-                            q = int(re.sub(r'\D', '', str(item.get('quality') or item.get('label') or k)) or 0)
-                            if u and self.isVideoFormat(u) and q >= best_q:
-                                best, best_q = u, q
-                if best:
-                    return best.replace('\\/', '/')
-                sources = (data.get('videoModel') or {}).get('sources') or {}
-                for fmt in ('h264', 'av1', 'mp4'):
-                    dict_q = sources.get(fmt) or {}
-                    if not isinstance(dict_q, dict):
-                        continue
-                    for q in sorted(dict_q.keys(), key=lambda x: int(re.sub(r'\D', '', str(x)) or 0), reverse=True):
-                        item = dict_q[q]
-                        u = item if isinstance(item, str) else (item.get('url') or item.get('fallback') if isinstance(item, dict) else '')
-                        if u and self.isVideoFormat(u):
-                            return u.replace('\\/', '/')
-            except Exception:
-                pass
-        for key in ('h264', 'av1', 'videoUrl', 'fallback', 'hls'):
-            m = re.search(r'"%s"\s*:\s*"(https?:[^"]+)"' % key, html)
-            if m:
-                u = m.group(1).replace('\\/', '/')
-                if self.isVideoFormat(u):
-                    return u
-        m = re.search(r'"url"\s*:\s*"(https?:[^"]+\.(?:mp4|m3u8)[^"]*)"', html)
-        if m:
-            return m.group(1).replace('\\/', '/')
-        return ''
-
-    def playerContent(self, flag, id, vipFlags):
+    def playerContent(self, flag, id, vipFlags=None):
         header = {
             'User-Agent': self.userAgent,
             'Referer': self.siteUrl + '/',
             'Origin': self.siteUrl,
+            'Accept': '*/*',
         }
-        play_id = str(id or '')
+
+        def clean(u):
+            u = (u or '').replace('\\/', '/').strip()
+            if len(u) > 10 and 'http' in u[8:]:
+                u = u[:u.find('http', 8)]
+            u = u.strip().split()[0] if u else ''
+            if '_TPL_' in u:
+                u = re.sub(r'_TPL_\.(?:h264|av1)', '720p.h264', u)
+            return u
+
+        play_id = str(id or '').strip()
+        if play_id.startswith('//'):
+            play_id = 'https:' + play_id
+        if '$' in play_id and not play_id.startswith('http'):
+            play_id = play_id.split('$')[-1].strip()
+        play_id = clean(play_id)
+
         if play_id.startswith('http') and self.isVideoFormat(play_id):
-            return {'parse': 0, 'url': play_id, 'playUrl': play_id, 'header': header}
-        slug = play_id.split('|')[0].split('$')[-1]
+            return {'parse': 0, 'jx': 0, 'url': play_id, 'playUrl': '', 'header': header}
+
+        slug = play_id.split('|')[0]
         if slug.startswith('videos/'):
             slug = slug[7:]
         slug = slug.split('?')[0].split('#')[0]
-        if slug.startswith('http') and self.isVideoFormat(slug):
-            return {'parse': 0, 'url': slug, 'playUrl': slug, 'header': header}
         page = self.siteUrl + '/videos/' + slug
         html = self.fetch(page)
-        url = self._pick_play(html)
-        if url:
-            return {
-                'parse': 0 if self.isVideoFormat(url) else 1,
-                'url': url, 'playUrl': url, 'header': header,
-            }
-        return {'parse': 1, 'jx': '1', 'url': page, 'playUrl': page, 'header': header}
+        plays = self._pick_plays(html)
+        if plays:
+            flag_s = str(flag or '')
+            chosen = plays[0][1]
+            for n, u in plays:
+                if flag_s and (flag_s == n or flag_s in n or n in flag_s):
+                    chosen = u
+                    break
+            # 优先 720p
+            if not flag_s or flag_s in ('xHamster', '正片', ''):
+                for n, u in plays:
+                    if n == '720p':
+                        chosen = u
+                        break
+            return {'parse': 0, 'jx': 0, 'url': clean(chosen), 'playUrl': '', 'header': header}
+
+        return {'parse': 1, 'jx': '1', 'url': page, 'playUrl': '', 'header': header}
 
     def isVideoFormat(self, url):
         if not url:
@@ -486,4 +555,13 @@ class Spider(BaseSpider):
 if __name__ == '__main__':
     spider = Spider()
     spider.init()
-    print(json.dumps(spider.homeContent(True), ensure_ascii=False, indent=2)[:500])
+    r = spider.categoryContent('newest', 1)
+    print('list', len(r.get('list') or []))
+    if r.get('list'):
+        d = spider.detailContent([r['list'][0]['vod_id']])
+        item = d['list'][0]
+        print('from', item['vod_play_from'])
+        print('url', item['vod_play_url'][:120])
+        print('TPL', '_TPL_' in item['vod_play_url'])
+        pc = spider.playerContent('720p', item['vod_play_url'].split('#')[0].split('$')[-1])
+        print('pc', pc['url'][:90])
